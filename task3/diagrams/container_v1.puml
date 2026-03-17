@@ -1,0 +1,77 @@
+@startuml BankStandart_container
+
+title BankStandart container diagramm
+
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+AddComponentTag("new", $bgColor="#FFC0CB", $fontColor="#000000")
+AddComponentTag("sftp", $bgColor="#E6E6FA", $fontColor="#000000") 
+
+Person(depositManagerBackOffice, "Менеджер депозитов бек офиса", "Согласовывает ставку по депозиту для клиента")
+Person(creditManagerBackOffice, "Менеджер кредитования бек офиса", "Проводит риск анализ в ABS, рассчитывает кредитный риск вручную")
+Person(managerFrontOffice, "Менеджер фронт офиса", "Обслуживает клиентов в офисе, формирует маркетинговые предложения на сайте")
+Person(user, "User", "Клиент Банка")
+
+System_Ext(callCenter, "Кол-центр")
+System_Ext(mobileOperator, "Мобильный оператор")
+
+System_Boundary(bankSystem, "Внутренняя система банка") {
+    Container(abs, "ABS", "Delphi")
+    ContainerDb(abs_db, "ABS DB", "Oracle")
+
+    'Интернет банк
+    Container(internetBankClient, "ibank website", "Интернет банк (клиентская часть)")
+    Container(internetBank, "ibank", "Интернет банк", "ASP.NET MVC 4.5 / .NET Framework 4.5")
+    ContainerDb(internetBank_db, "ibank DB", "БД Интернет банка", "MS SQL")
+    'Сайт
+    Container(webBankUI, "WebBankUI", "Сайт банка", "React.js")
+    Container(webBankBE, "WebBankBE", "бек сайта банка", "PHP")
+    'Очереди
+    Container(depositRequestMessageBus, "Appeals MessageBus", "очередь для заявок на депозит", "Kafka", $tags="new")
+    Container(approvalsMessageBus, "Approvals MessageBus", "очередь для подвтерждения заявок менеджерами", "Kafka", $tags="new")
+    'Депозиты
+    Container(depositsLoadBalancer, "Deposits Load Balancer", "Nginx/HAProxy","Распределяет трафик между экземплярами deposits", $tags="new")
+    Container(deposits, "Deposits", "Сервис по обработке депозитов\n(ежедневно читает файл с кредитным риском из SFTP для пересчета базовых ставок)", "ASP.NET", $tags="new")
+    ContainerDb(deposits_cache, "Deposits Cache", "Кеш ставок по депозитам", "Redis", $tags="new")
+    ContainerDb(deposits_db, "Deposits DB", "Личные ставки по депозитам для клиентов с большим балансом", "MS SQL", $tags="new")
+    'SFTP
+    Container(sftpServer, "SFTP-сервер", "Хранилище файлов с рассчитанным кредитным риском", $tags="sftp+new")
+}
+
+'Связи АБС
+Rel(managerFrontOffice, abs, "Регистрация клиентов, получение предложений по депозитам и кредитам, открытие счетов и депозитов")
+Rel(depositManagerBackOffice, abs,  "Получение ставок по депозитам")
+BiRel(abs, approvalsMessageBus, "Отправка и получения подтверждения ставки депозита", "kafka")
+BiRel(abs, abs_db, "сохранение, обновление данных")
+Rel(callCenter, abs, "Данные по клиентам, заведение заявок")
+Rel(depositRequestMessageBus, callCenter, "Обработка заявок на депозит с сайта")
+
+'Процесс ручного расчета кредитного риска
+Rel(creditManagerBackOffice, abs, "Формирует отчет по кредитному риску в ABS", $tags="new")
+Rel(creditManagerBackOffice, sftpServer, "Выгружает рассчитанный кредитный риск в Excel-файле\n(ежедневно, вручную)", $tags="new")
+
+'Связи интернет банка
+Rel(user, internetBankClient, "управление счетами, платежи, открытие депозитов")
+Rel(internetBankClient, internetBank, "Управление счетами, платежи, открытие депозита")
+BiRel(internetBank, internetBank_db, "сохранение данных")
+Rel(internetBank, abs_db, "управление счетами, платежи")
+Rel(internetBank, depositRequestMessageBus, "отправка заявки на депозит", "kafka")
+Rel(internetBank, mobileOperator, "отправка смс с кодом подтверждения", "HTTPS")
+Rel(internetBank, depositsLoadBalancer, "получени ставок по депозитам", "https")
+
+'Связи сайта
+Rel(user, webBankUI, "просмотр ставок по депозитам, завдение заявок на депозит")
+Rel(webBankUI, webBankBE, "Заявки на депозит, получение маркетинговых предложений", "HTTPS")
+Rel(webBankBE, depositRequestMessageBus, "отправка заявки на депозит", "kafka")
+
+'Депозиты
+Rel(depositsLoadBalancer, deposits, "получение ставок по депозитам")
+Rel(depositRequestMessageBus, deposits, "получение заявок на открытие депозита", "kafka")
+Rel(deposits, internetBank, "открытие депозита", "HTTPS")
+Rel(deposits, sftpServer, "Чтение Excel-файла с кредитным риском\nдля ежедневного пересчета базовых ставок", "SFTP", $tags="new")
+BiRel(deposits, deposits_cache, "сохранение/получение текущих ставок по депозитам")
+BiRel(deposits, deposits_db, "сохранение/получение текущих индивидуальных ставок по депозитам, работа с процессом открытия депозита")
+Rel(deposits, mobileOperator, "Отправка уведомления об открытии депозита", "HTTPS")
+BiRel(deposits, approvalsMessageBus, "Отправка и получения подтверждения ставки депозита", "kafka")
+
+@enduml
