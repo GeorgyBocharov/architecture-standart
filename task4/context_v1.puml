@@ -1,0 +1,33 @@
+@startuml StandartBank
+title StandartBankContext
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+Person(user, "User", "Клиент Банка")
+Person(callCenterOperator, "Оператор", "Оператор колл-центра")
+Person(partnerCallCenterOperator, "Оператор Партнера", "Оператор партнерского колл-центра")
+Person(depositManagerBackOffice, "Менеджер депозитов бек офиса", "Согласовывает ставку по депозиту для клиента")
+Person(creditManagerBackOffice, "Менеджер кредитования бек офиса", "Проводит риск анализ, считает возможные ставки по кредитам и депозитам")
+Person(managerFrontOffice, "Менеджер фронт офиса", "Обслуживает клиентов в офисе, формирует маркетинговые предложения на сайте")
+
+System_Ext(callCenter, "Кол-центр")
+System_Ext(partnerCallCenter, "Партнерский кол-центр")
+System(bankSystem, "Cистема банка")
+System_Ext(mobileOperator, "Мобильный оператор")
+
+Rel(user, callCenter, "Узнать условия депозитов, вопросы по своим счетам")
+
+Rel(user, bankSystem, "Открытие депозита, заявка на депозит, управление счетами, получение персональных ставок и открытие депозита")
+Rel(callCenterOperator, user, "Предложение депозита, приглашение пройти идентификацию")
+Rel(callCenterOperator, callCenter, "Обработка звоноков")
+Rel(callCenterOperator, bankSystem, "Получение предложений по депозиту, получение заявок на депозит с сайта")
+Rel(partnerCallCenterOperator, partnerCallCenter, "Получение предложений по депозиту, получение заявок на депозит с сайта")
+
+Rel(callCenter, bankSystem, "Данные по клиентам, актуальные ставки по депозитам, заведение заявок")
+Rel(partnerCallCenter, bankSystem, "Данные по клиентам, актуальные ставки по депозитам, заведение заявок")
+Rel(managerFrontOffice, bankSystem, "Регистрация клиентов, получение предложений по депозитам и кредитам, открытие счетов и депозитов")
+Rel(depositManagerBackOffice, bankSystem,  "Получение ставок по депозитам")
+Rel(creditManagerBackOffice, bankSystem, "Расчет кредитного риска, расчет возможных ставок по депозиту")
+Rel(bankSystem, mobileOperator, "Отправка кода подтверждения клиенту")
+Rel(mobileOperator, user, "Отправка кода подтверждения клиенту")
+
+@enduml
