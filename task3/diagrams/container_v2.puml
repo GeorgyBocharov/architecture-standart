@@ -1,0 +1,81 @@
+@startuml TOBE_CinemaAbyss_container
+
+title TOBE CinemaAbyss container diagramm
+
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+AddComponentTag("new", $bgColor="#FFC0CB", $fontColor="#000000")
+
+Person(depositManagerBackOffice, "Менеджер депозитов бек офиса", "Согласовывает ставку по депозиту для клиента")
+Person(creditManagerBackOffice, "Менеджер кредитования бек офиса", "Проводит риск анализ, считает возможные ставки по кредитам и депозитам")
+Person(managerFrontOffice, "Менеджер фронт офиса", "Обслуживает клиентов в офисе, формирует маркетинговые предложения на сайте")
+Person(user, "User", "Клиент Банка")
+
+System_Ext(callCenter, "Кол-центр")
+System_Ext(mobileOperator, "Мобильный оператор")
+
+
+System_Boundary(bankSystem, "Внутренняя система банка") {
+    Container(abs, "ABS", "Delphi")
+    ContainerDb(abs_db, "ABS DB", "Oracle")
+
+    'Интернет банк
+    Container(internetBankClient, "ibank website", "Интернет банк (клиентская часть)")
+    Container(internetBank, "ibank", "Интернет банк", "ASP.NET MVC 4.5 / .NET Framework 4.5")
+    ContainerDb(internetBank_db, "ibank DB", "БД Интернет банка", "MS SQL")
+    'Сайт
+    Container(webBankUI, "WebBankUI", "Сайт банка", "React.js")
+    Container(webBankBE, "WebBankBE", "бек сайта банка", "PHP")
+    'Очереди
+    Container(depositRequestMessageBus, "Appeals MessageBus", "очередь для заявок на депозит", "Kafka", $tags="new")
+    Container(approvalsMessageBus, "Approvals MessageBus", "очередь для подвтерждения заявок менеджерами", "Kafka", $tags="new")
+    'Депозиты
+    Container(deposits, "Deposits", "Сервис по обработке депозитов", "ASP.NET", $tags="new")
+    ContainerDb(deposits_cache, "Deposits Cache", "Кеш ставок по депозитам", "Redis", $tags="new")
+    ContainerDb(deposits_db, "Deposits DB", "Личные ставки по депозитам для клиентов с большим балансом", "MS SQL", $tags="new")
+    'Кредитный риск
+    Container(creditRisk, "CrediRisk","Сервис расчета кредитного риска", "ASP.NET", $tags="new")
+    ContainerDb(creditRisk_db, "CrediRisk DB", "MS SQL", $tags="new")
+
+}
+
+'Связи АБС
+Rel(managerFrontOffice, abs, "Регистрация клиентов, получение предложений по депозитам и кредитам, открытие счетов и депозитов")
+Rel(depositManagerBackOffice, abs,  "Получение ставок по депозитам")
+Rel(creditManagerBackOffice, abs, "Расчет кредитного риска, расчет возможных ставок по депозиту")
+BiRel(abs, approvalsMessageBus, "Отправка и получения подтверждения ставки депозита", "kafka")
+
+BiRel(abs, abs_db, "сохранение, обновление данных")
+Rel(callCenter, abs, "Данные по клиентам, заведение заявок")
+Rel(depositRequestMessageBus, callCenter, "Обработка заявок на депозит с сайта")
+
+'Связи интернет банка
+Rel(user, internetBankClient, "управление счетами, платежи, открытие депозитов")
+Rel(internetBankClient, internetBank, "Управление счетами, платежи, открытие депозита")
+BiRel(internetBank, internetBank_db, "сохранение данных")
+Rel(internetBank, abs_db, "управление счетами, платежи")
+Rel(internetBank, depositRequestMessageBus, "отправка заявки на депозит", "kafka")
+Rel(internetBank, mobileOperator, "отправка смс с кодом подтверждения", "HTTPS")
+
+'Связи сайта
+Rel(user, webBankUI, "просмотр ставок по депозитам, завдение заявок на депозит")
+Rel(webBankUI, webBankBE, "Заявки на депозит, получение маркетинговых предложений", "HTTPS")
+Rel(webBankBE, depositRequestMessageBus, "отправка заявки на депозит", "kafka")
+
+'Депозиты
+Rel(depositRequestMessageBus, deposits, "получение заявок на открытие депозита", "kafka")
+Rel(deposits, internetBank, "открытие депозита", "HTTPS")
+Rel(deposits, creditRisk, "получение кредитного риска банка", "HTTPS")
+BiRel(deposits, deposits_cache, "сохранение/получение текущих ставок по депозитам")
+BiRel(deposits, deposits_db, "сохранение/получение текущих индивидуальных ставок по депозитам, работа с процессом открытия депозита")
+Rel(deposits, mobileOperator, "Отправка уведомления об открытии депозита", "HTTPS")
+BiRel(deposits, approvalsMessageBus, "Отправка и получения подтверждения ставки депозита", "kafka")
+
+
+'Кредитный риск
+Rel(creditRisk, abs_db, "Ежедневный расчет кредитного риска банка")
+Rel(creditRisk, creditRisk_db, "Сохранение кредитного риска")
+
+
+
+@enduml
